@@ -42,6 +42,7 @@ static const char dhcpcd_copyright[] = "Copyright (c) 2006-2025 Roy Marples";
 #include <getopt.h>
 #include <limits.h>
 #include <paths.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1891,15 +1892,40 @@ err:
 	eloop_exit(ctx->eloop, EXIT_FAILURE);
 }
 
+/* How long to wait for the manager to report the result of a command.
+ * dhcpcd-10.5 introduced this reply; older managers action the command
+ * but never send one, so we must not wait for it forever. */
+#define	READERROR_TIMEOUT_MS	5000
+
 static int
 dhcpcd_readerror(struct dhcpcd_ctx *ctx)
 {
 	int error = 0;
 	ssize_t len;
+	struct pollfd pfd = { .fd = ctx->control_fd, .events = POLLIN };
+	int n;
+
+	/* The socket is blocking, so poll for the reply rather than
+	 * risk blocking in read(3) forever. */
+	do {
+		n = poll(&pfd, 1, READERROR_TIMEOUT_MS);
+	} while (n == -1 && errno == EINTR);
+	if (n == -1)
+		return -1;
+	if (n == 0) {
+		logwarnx("timed out waiting for a reply from dhcpcd; "
+		    "assuming the command was actioned "
+		    "(is the running dhcpcd older than %s?)", VERSION);
+		return 0;
+	}
 
 	len = read(ctx->control_fd, &error, sizeof(error));
 	if (len == -1)
 		return -1;
+	if (len == 0) {
+		/* An older dhcpcd closed the socket without replying. */
+		return 0;
+	}
 	if (len != sizeof(error)) {
 		errno = EINVAL;
 		return -1;
