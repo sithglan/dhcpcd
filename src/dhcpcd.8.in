@@ -23,7 +23,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd July 5, 2026
+.Dd September 7, 2026
 .Dt DHCPCD 8
 .Os
 .Sh NAME
@@ -818,6 +818,24 @@ sends to match.
 If using a DUID in place of the ClientID, edit
 .Pa @DBDIR@/duid
 accordingly.
+.Pp
+When sending a command such as
+.Fl k , Fl Fl release
+or
+.Fl n , Fl Fl rebind
+to the running manager,
+.Nm
+waits a short while for the manager to report the result.
+Managers older than dhcpcd-10.5 action the command but never report a
+result, so
+.Nm
+logs
+.Dq timed out waiting for a reply from dhcpcd
+and assumes the command was actioned.
+This is expected if the
+.Nm
+binaries have been upgraded without restarting the running manager;
+restarting the manager stops the message.
 .Sh FILES
 .Bl -ohang
 .It Pa @SYSCONFDIR@/dhcpcd.conf
